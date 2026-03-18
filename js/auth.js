@@ -1,39 +1,59 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const existingUser = getCurrentUser();
+  if (existingUser) {
+    const role = String(existingUser.role || "").toUpperCase();
+    if (role === "ADMIN") {
+      window.location.href = "admin.html";
+      return;
+    }
+    if (role === "STAFF") {
+      window.location.href = "staff.html";
+      return;
+    }
+  }
+
   const form = document.getElementById("loginForm");
+  const msgId = "loginMessage";
+
   if (!form) return;
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
 
-    const username = document.getElementById("username").value.trim();
-    const password = document.getElementById("password").value.trim();
+    const username = document.getElementById("username")?.value.trim() || "";
+    const password = document.getElementById("password")?.value.trim() || "";
 
-    showMessage("loginMessage", "Logging in...", false);
+    if (!username || !password) {
+      showMessage(msgId, "Username and password are required.", true);
+      return;
+    }
+
+    showMessage(msgId, "Signing in...", false);
 
     try {
-      const result = await apiPost({
-        action: "loginUser",
-        username,
-        password
-      });
+      const result = await login(username, password);
 
-      if (!result.success) {
-        showMessage("loginMessage", result.message || "Login failed.", true);
+      if (!result || !result.success) {
+        showMessage(msgId, result?.message || "Login failed.", true);
         return;
       }
 
-      const user = result.data || {};
-      setSession(user);
+      const role = String(result.data?.role || "").toUpperCase();
 
-      if (user.role === "ADMIN") {
+      if (role === "ADMIN") {
         window.location.href = "admin.html";
-      } else if (user.role === "STAFF") {
-        window.location.href = "staff.html";
-      } else {
-        showMessage("loginMessage", "Invalid user role.", true);
+        return;
       }
+
+      if (role === "STAFF") {
+        window.location.href = "staff.html";
+        return;
+      }
+
+      showMessage(msgId, "Unknown user role.", true);
     } catch (err) {
-      showMessage("loginMessage", "Unable to connect to server.", true);
+      console.error("Login error:", err);
+      showMessage(msgId, "Unable to connect to server.", true);
     }
   });
 });
