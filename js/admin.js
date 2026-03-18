@@ -13,6 +13,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   bindAdminEvents();
   await loadSubscribers();
   await loadBilling();
+  await loadBillingSummary();
 });
 
 function bindAdminEvents() {
@@ -293,6 +294,31 @@ function renderBilling(data) {
   `).join("");
 }
 
+async function loadBillingSummary() {
+  try {
+    const result = await apiGet({
+      action: "getBillingStatusSummary",
+      days: 7
+    });
+
+    if (!result.success) return;
+
+    const data = result.data || {};
+
+    document.getElementById("cardOverdue").textContent =
+      (data.overdue || []).length;
+
+    document.getElementById("cardDueToday").textContent =
+      (data.dueToday || []).length;
+
+    document.getElementById("cardDueSoon").textContent =
+      (data.dueSoon || []).length;
+
+  } catch (err) {
+    console.error("Billing summary error:", err);
+  }
+}
+
 async function generateBilling() {
   try {
     showMessage("billingMessage", "Generating billing...", false);
@@ -316,6 +342,7 @@ async function generateBilling() {
     );
 
     await loadBilling();
+    await loadBillingSummary();
   } catch (err) {
     showMessage("billingMessage", "Failed to generate billing.", true);
   }
