@@ -21,9 +21,11 @@
 
   <div class="container">
     <div class="card">
-      <h2 class="section-title">Add New Subscriber</h2>
+      <h2 class="section-title" id="formTitle">Add New Subscriber</h2>
 
       <form id="addSubscriberForm">
+        <input type="hidden" id="subscriber_id" />
+
         <div class="form-grid">
           <div class="form-group">
             <label>Account No</label>
@@ -110,8 +112,9 @@
           <textarea id="remarks"></textarea>
         </div>
 
-        <div style="margin-top:14px;">
-          <button type="submit" class="btn-primary">Save Subscriber</button>
+        <div style="margin-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
+          <button type="submit" class="btn-primary" id="saveBtn">Save Subscriber</button>
+          <button type="button" class="btn-light" id="cancelEditBtn" style="display:none;">Cancel Edit</button>
         </div>
 
         <div id="formMessage" class="message"></div>
@@ -130,6 +133,7 @@
         <table>
           <thead>
             <tr>
+              <th>Action</th>
               <th>Account No</th>
               <th>Full Name</th>
               <th>Plan</th>
@@ -144,7 +148,7 @@
           </thead>
           <tbody id="subscriberTableBody">
             <tr>
-              <td colspan="10" class="empty-cell">Loading...</td>
+              <td colspan="11" class="empty-cell">Loading...</td>
             </tr>
           </tbody>
         </table>
