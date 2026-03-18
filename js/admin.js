@@ -205,7 +205,8 @@ async function updateSubscriber() {
     }
 
     resetFormMode();
-    showMessage("formMessage", "Subscriber updated successfully.", false);
+    const newAccountNo = result?.data?.account_no || "";
+showMessage("formMessage", "Subscriber added successfully. Account No: " + newAccountNo, false);
     await loadSubscribers();
   } catch (err) {
     showMessage("formMessage", "Unable to update subscriber.", true);
