@@ -48,6 +48,7 @@ function bindAdminEvents() {
     addForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       if (isSavingSubscriber) return;
+
       if (isEditMode) {
         await updateSubscriber();
       } else {
@@ -135,6 +136,14 @@ async function loadDashboardSummary() {
     setText("cardOverdue", d.overdue || 0);
     setText("cardDueToday", d.dueToday || 0);
     setText("cardDueSoon", d.dueSoon || 0);
+
+    // Optional extra cards if you add them in HTML later
+    setTextIfExists("cardReceivable", formatMoney(d.totalReceivable || 0));
+    setTextIfExists("cardAdvanceCredit", formatMoney(d.totalAdvanceCredit || 0));
+    setTextIfExists("cardCollectedToday", formatMoney(d.collectedToday || 0));
+    setTextIfExists("cardCollectedMonth", formatMoney(d.collectedMonth || 0));
+    setTextIfExists("cardExpensesMonth", formatMoney(d.expensesMonth || 0));
+    setTextIfExists("cardNetIncome", formatMoney(d.netIncome || 0));
   } catch (err) {
     console.error("loadDashboardSummary error:", err);
   } finally {
@@ -204,7 +213,7 @@ function renderSubscribers(keyword = "") {
   if (!rows.length) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="12" class="empty-cell">No subscribers found.</td>
+        <td colspan="13" class="empty-cell">No subscribers found.</td>
       </tr>
     `;
     return;
@@ -230,6 +239,7 @@ function renderSubscribers(keyword = "") {
       <td>${escapeHtml(item.MAC_address)}</td>
       <td>${escapeHtml(item.olt_port)}</td>
       <td>${escapeHtml(item.onu_serial)}</td>
+      <td>${formatMoney(item.advance_credit || 0)}</td>
     </tr>
   `).join("");
 }
@@ -237,6 +247,7 @@ function renderSubscribers(keyword = "") {
 async function openLedger(accountNo, fullName) {
   setValue("ledger_account_no", accountNo || "");
   setValue("ledger_full_name", fullName || "");
+
   await loadLedger(accountNo, fullName);
 
   const ledgerSection = document.getElementById("ledgerSection");
@@ -480,6 +491,8 @@ async function generateBilling() {
     await Promise.allSettled([
       loadBilling(),
       loadBillingSummary(),
+      loadPayments(),
+      loadSubscribers(),
       loadDashboardSummary()
     ]);
   } catch (err) {
@@ -515,15 +528,25 @@ async function addPayment() {
       return;
     }
 
+    const overpayment = Number(result?.data?.overpayment || 0);
     const form = document.getElementById("paymentForm");
     if (form) form.reset();
 
-    showMessage("paymentMessage", "Payment recorded successfully.", false);
+    if (overpayment > 0) {
+      showMessage(
+        "paymentMessage",
+        `Payment recorded successfully. Excess ${formatMoney(overpayment)} saved as advance credit.`,
+        false
+      );
+    } else {
+      showMessage("paymentMessage", "Payment recorded successfully.", false);
+    }
 
     await Promise.allSettled([
       loadPayments(),
       loadBilling(),
       loadBillingSummary(),
+      loadSubscribers(),
       loadDashboardSummary()
     ]);
   } catch (err) {
@@ -600,6 +623,7 @@ async function loadLedger(accountNoArg = "", fullNameArg = "") {
       renderLedgerPayments([]);
       setText("ledgerTotalUnpaid", formatMoney(0));
       setText("ledgerTotalPaid", formatMoney(0));
+      setTextIfExists("ledgerAdvanceCredit", formatMoney(0));
       return;
     }
 
@@ -607,6 +631,7 @@ async function loadLedger(accountNoArg = "", fullNameArg = "") {
 
     setText("ledgerTotalUnpaid", formatMoney(data.total_unpaid || 0));
     setText("ledgerTotalPaid", formatMoney(data.total_paid || 0));
+    setTextIfExists("ledgerAdvanceCredit", formatMoney(data.advance_credit || 0));
 
     renderLedgerBills(Array.isArray(data.bills) ? data.bills : []);
     renderLedgerPayments(Array.isArray(data.payments) ? data.payments : []);
@@ -694,6 +719,11 @@ function setValue(id, value) {
 }
 
 function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = String(value ?? "");
+}
+
+function setTextIfExists(id, value) {
   const el = document.getElementById(id);
   if (el) el.textContent = String(value ?? "");
 }
