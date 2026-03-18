@@ -181,3 +181,27 @@
   <script src="js/admin.js"></script>
 </body>
 </html>
+
+<h2>Billing Management</h2>
+
+<div style="margin-bottom:10px;">
+  <button id="generateBillingBtn">Generate Monthly Billing</button>
+</div>
+
+<p id="billingMessage"></p>
+
+<table border="1" width="100%">
+  <thead>
+    <tr>
+      <th>Billing ID</th>
+      <th>Account No</th>
+      <th>Name</th>
+      <th>Plan</th>
+      <th>Month</th>
+      <th>Due Date</th>
+      <th>Amount</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody id="billingTableBody"></tbody>
+</table>
