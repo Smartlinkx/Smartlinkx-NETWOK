@@ -11,9 +11,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   bindStaffEvents();
-  initSidebarNavigation();
   await loadSubscribers();
-  await loadBilling();
 });
 
 function bindStaffEvents() {
@@ -235,47 +233,6 @@ function collectFormPayload(actionName) {
   return payload;
 }
 
-async function loadBilling() {
-  try {
-    showMessage("billingMessage", "Loading billing...", false);
-
-    const result = await apiGet({ action: "getBilling" });
-
-    if (!result.success) {
-      showMessage("billingMessage", result.message || "Failed to load billing.", true);
-      return;
-    }
-
-    renderBilling(result.data || []);
-    showMessage("billingMessage", "Billing loaded successfully.", false);
-  } catch (err) {
-    showMessage("billingMessage", "Failed to load billing.", true);
-  }
-}
-
-function renderBilling(data) {
-  const tbody = document.getElementById("billingTableBody");
-  if (!tbody) return;
-
-  if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty-cell">No billing data.</td></tr>`;
-    return;
-  }
-
-  tbody.innerHTML = data.map(item => `
-    <tr>
-      <td>${escapeHtml(item.billing_id)}</td>
-      <td>${escapeHtml(item.account_no)}</td>
-      <td>${escapeHtml(item.full_name)}</td>
-      <td>${escapeHtml(item.plan_name)}</td>
-      <td>${escapeHtml(item.billing_month)}</td>
-      <td>${escapeHtml(item.due_date)}</td>
-      <td>${formatMoney(item.amount)}</td>
-      <td>${escapeHtml(item.status)}</td>
-    </tr>
-  `).join("");
-}
-
 function normalizeInputDate(value) {
   if (!value) return "";
   const str = String(value);
@@ -287,22 +244,4 @@ function normalizeInputDate(value) {
 
 function escapeJs(value) {
   return String(value ?? "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-}
-function initSidebarNavigation() {
-  const buttons = document.querySelectorAll(".nav-btn");
-  const sections = document.querySelectorAll(".page-section");
-
-  buttons.forEach(btn => {
-    btn.addEventListener("click", () => {
-      const target = btn.getAttribute("data-target");
-
-      // remove active
-      buttons.forEach(b => b.classList.remove("active"));
-      sections.forEach(sec => sec.classList.remove("active"));
-
-      // activate clicked
-      btn.classList.add("active");
-      document.getElementById(target).classList.add("active");
-    });
-  });
 }
