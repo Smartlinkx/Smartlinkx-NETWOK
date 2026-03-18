@@ -14,6 +14,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadSubscribers();
   await loadBilling();
   await loadBillingSummary();
+  await loadPayments();
 });
 
 function bindAdminEvents() {
@@ -29,6 +30,14 @@ function bindAdminEvents() {
       } else {
         await addSubscriber();
       }
+    });
+  }
+
+  const paymentForm = document.getElementById("paymentForm");
+  if (paymentForm) {
+    paymentForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await addPayment();
     });
   }
 
@@ -371,6 +380,77 @@ async function generateBilling() {
   } catch (err) {
     showMessage("billingMessage", "Failed to generate billing.", true);
   }
+}
+
+async function addPayment() {
+  const payload = {
+    action: "addPayment",
+    account_no: document.getElementById("payment_account_no").value.trim(),
+    full_name: document.getElementById("payment_full_name").value.trim(),
+    payment_date: document.getElementById("payment_date").value.trim(),
+    amount: document.getElementById("payment_amount").value.trim(),
+    payment_method: document.getElementById("payment_method").value.trim(),
+    reference: document.getElementById("payment_reference").value.trim(),
+    remarks: document.getElementById("payment_remarks").value.trim()
+  };
+
+  try {
+    showMessage("paymentMessage", "Saving payment...", false);
+
+    const result = await apiPost(payload);
+
+    if (!result.success) {
+      showMessage("paymentMessage", result.message || "Failed to save payment.", true);
+      return;
+    }
+
+    document.getElementById("paymentForm").reset();
+    showMessage("paymentMessage", "Payment recorded successfully.", false);
+
+    await loadPayments();
+    await loadBilling();
+    await loadBillingSummary();
+  } catch (err) {
+    showMessage("paymentMessage", "Unable to save payment.", true);
+  }
+}
+
+async function loadPayments() {
+  try {
+    const result = await apiGet({ action: "getPayments" });
+
+    if (!result.success) {
+      showMessage("paymentMessage", result.message || "Failed to load payments.", true);
+      return;
+    }
+
+    renderPayments(result.data || []);
+  } catch (err) {
+    showMessage("paymentMessage", "Failed to load payments.", true);
+  }
+}
+
+function renderPayments(data) {
+  const tbody = document.getElementById("paymentsTableBody");
+  if (!tbody) return;
+
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-cell">No payment data.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.map(item => `
+    <tr>
+      <td>${escapeHtml(item.payment_id)}</td>
+      <td>${escapeHtml(item.billing_id)}</td>
+      <td>${escapeHtml(item.account_no)}</td>
+      <td>${escapeHtml(item.full_name)}</td>
+      <td>${escapeHtml(item.payment_date)}</td>
+      <td>${formatMoney(item.amount)}</td>
+      <td>${escapeHtml(item.payment_method)}</td>
+      <td>${escapeHtml(item.reference)}</td>
+    </tr>
+  `).join("");
 }
 
 function normalizeInputDate(value) {
