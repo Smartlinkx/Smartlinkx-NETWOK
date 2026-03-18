@@ -2,7 +2,7 @@ let subscribersCache = [];
 let isEditMode = false;
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const user = requireRole("ADMIN");
+  const user = requireRole("STAFF");
   if (!user) return;
 
   const welcome = document.getElementById("welcomeText");
@@ -10,16 +10,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     welcome.textContent = `Welcome, ${user.full_name || user.username}`;
   }
 
-  bindAdminEvents();
+  bindStaffEvents();
   await loadSubscribers();
   await loadBilling();
   await loadBillingSummary();
   await loadPayments();
 });
 
-function bindAdminEvents() {
+function bindStaffEvents() {
   const logoutBtn = document.getElementById("logoutBtn");
   if (logoutBtn) logoutBtn.addEventListener("click", logout);
+
+  const searchInput = document.getElementById("searchInput");
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      renderSubscribers(searchInput.value.trim());
+    });
+  }
 
   const addForm = document.getElementById("addSubscriberForm");
   if (addForm) {
@@ -41,21 +48,9 @@ function bindAdminEvents() {
     });
   }
 
-  const searchInput = document.getElementById("searchInput");
-  if (searchInput) {
-    searchInput.addEventListener("input", () => {
-      renderSubscribers(searchInput.value.trim());
-    });
-  }
-
   const cancelEditBtn = document.getElementById("cancelEditBtn");
   if (cancelEditBtn) {
     cancelEditBtn.addEventListener("click", resetFormMode);
-  }
-
-  const genBtn = document.getElementById("generateBillingBtn");
-  if (genBtn) {
-    genBtn.addEventListener("click", generateBilling);
   }
 
   const loadLedgerBtn = document.getElementById("loadLedgerBtn");
@@ -110,23 +105,10 @@ async function loadSubscribers() {
 
     subscribersCache = result.data || [];
     renderSubscribers();
-    updateSummaryCards();
     showMessage("pageMessage", "Subscribers loaded successfully.", false);
   } catch (err) {
     showMessage("pageMessage", "Unable to load subscribers.", true);
   }
-}
-
-function updateSummaryCards() {
-  const total = subscribersCache.length;
-  const active = subscribersCache.filter(x => String(x.status).toUpperCase() === "ACTIVE").length;
-  const disabled = subscribersCache.filter(x => String(x.status).toUpperCase() === "TEMP DISABLED").length;
-  const disconnected = subscribersCache.filter(x => String(x.status).toUpperCase() === "DISCONNECTED").length;
-
-  document.getElementById("cardTotal").textContent = total;
-  document.getElementById("cardActive").textContent = active;
-  document.getElementById("cardDisabled").textContent = disabled;
-  document.getElementById("cardDisconnected").textContent = disconnected;
 }
 
 function renderSubscribers(keyword = "") {
@@ -153,7 +135,7 @@ function renderSubscribers(keyword = "") {
   if (rows.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="12" class="empty-cell">No subscribers found.</td>
+        <td colspan="11" class="empty-cell">No subscribers found.</td>
       </tr>
     `;
     return;
@@ -161,10 +143,15 @@ function renderSubscribers(keyword = "") {
 
   tbody.innerHTML = rows.map(item => `
     <tr>
-      <td><button type="button" class="btn-light" onclick="startEdit('${escapeJs(item.subscriber_id)}')">Edit</button></td>
-      <td>${escapeHtml(item.subscriber_id)}</td>
+      <td>
+        <button type="button" class="btn-light" onclick="startEdit('${escapeJs(item.subscriber_id)}')">Edit</button>
+      </td>
       <td>${escapeHtml(item.account_no)}</td>
-      <td>${escapeHtml(item.full_name)}</td>
+      <td>
+        <a href="#" onclick="return openLedger('${escapeJs(item.account_no)}','${escapeJs(item.full_name)}')">
+          ${escapeHtml(item.full_name)}
+        </a>
+      </td>
       <td>${escapeHtml(item.plan_name)}</td>
       <td>${formatMoney(item.monthly_fee)}</td>
       <td>${escapeHtml(item.status)}</td>
@@ -175,6 +162,23 @@ function renderSubscribers(keyword = "") {
       <td>${escapeHtml(item.onu_serial)}</td>
     </tr>
   `).join("");
+}
+
+async function openLedger(accountNo, fullName) {
+  const accountEl = document.getElementById("ledger_account_no");
+  const nameEl = document.getElementById("ledger_full_name");
+
+  if (accountEl) accountEl.value = accountNo || "";
+  if (nameEl) nameEl.value = fullName || "";
+
+  await loadLedger(accountNo, fullName);
+
+  const ledgerSection = document.getElementById("ledgerSection");
+  if (ledgerSection) {
+    ledgerSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  return false;
 }
 
 function startEdit(subscriberId) {
@@ -243,6 +247,7 @@ async function addSubscriber() {
       "Subscriber added successfully." + (newAccountNo ? " Account No: " + newAccountNo : ""),
       false
     );
+
     await loadSubscribers();
   } catch (err) {
     showMessage("formMessage", "Unable to save subscriber.", true);
@@ -358,33 +363,6 @@ async function loadBillingSummary() {
   }
 }
 
-async function generateBilling() {
-  try {
-    showMessage("billingMessage", "Generating billing...", false);
-
-    const result = await apiPost({ action: "generateBilling" });
-
-    if (!result.success) {
-      showMessage("billingMessage", result.message || "Failed to generate billing.", true);
-      return;
-    }
-
-    const totalCreated = result?.data?.total_created ?? 0;
-    const billingMonth = result?.data?.billing_month || "";
-
-    showMessage(
-      "billingMessage",
-      `Billing generated successfully. Created: ${totalCreated}${billingMonth ? " | Month: " + billingMonth : ""}`,
-      false
-    );
-
-    await loadBilling();
-    await loadBillingSummary();
-  } catch (err) {
-    showMessage("billingMessage", "Failed to generate billing.", true);
-  }
-}
-
 async function addPayment() {
   const payload = {
     action: "addPayment",
@@ -456,9 +434,9 @@ function renderPayments(data) {
   `).join("");
 }
 
-async function loadLedger() {
-  const accountNo = document.getElementById("ledger_account_no").value.trim();
-  const fullName = document.getElementById("ledger_full_name").value.trim();
+async function loadLedger(accountNoArg = "", fullNameArg = "") {
+  const accountNo = accountNoArg || document.getElementById("ledger_account_no").value.trim();
+  const fullName = fullNameArg || document.getElementById("ledger_full_name").value.trim();
 
   try {
     showMessage("ledgerMessage", "Loading ledger...", false);
@@ -539,12 +517,7 @@ function normalizeInputDate(value) {
 }
 
 function escapeJs(value) {
-  return String(value ?? "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
-}
-
-async function openLedger(accountNo, fullName) {
-  document.getElementById("ledger_account_no").value = accountNo;
-  document.getElementById("ledger_full_name").value = fullName;
-
-  await loadLedger(accountNo, fullName);
+  return String(value ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'");
 }
