@@ -541,3 +541,10 @@ function normalizeInputDate(value) {
 function escapeJs(value) {
   return String(value ?? "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
+
+async function openLedger(accountNo, fullName) {
+  document.getElementById("ledger_account_no").value = accountNo;
+  document.getElementById("ledger_full_name").value = fullName;
+
+  await loadLedger(accountNo, fullName);
+}
