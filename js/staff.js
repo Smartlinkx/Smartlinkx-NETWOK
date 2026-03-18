@@ -283,3 +283,5 @@ function renderBilling(data) {
     </tr>
   `).join("");
 }
+
+await loadBilling();
