@@ -287,3 +287,21 @@ function normalizeInputDate(value) {
 function escapeJs(value) {
   return String(value ?? "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
+function initSidebarNavigation() {
+  const buttons = document.querySelectorAll(".nav-btn");
+  const sections = document.querySelectorAll(".page-section");
+
+  buttons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const target = btn.getAttribute("data-target");
+
+      // remove active
+      buttons.forEach(b => b.classList.remove("active"));
+      sections.forEach(sec => sec.classList.remove("active"));
+
+      // activate clicked
+      btn.classList.add("active");
+      document.getElementById(target).classList.add("active");
+    });
+  });
+}
