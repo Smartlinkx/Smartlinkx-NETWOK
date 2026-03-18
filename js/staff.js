@@ -13,6 +13,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   bindStaffEvents();
   await loadSubscribers();
   await loadBilling();
+  await loadBillingSummary();
 });
 
 function bindStaffEvents() {
@@ -273,6 +274,31 @@ function renderBilling(data) {
       <td>${escapeHtml(item.status)}</td>
     </tr>
   `).join("");
+}
+
+async function loadBillingSummary() {
+  try {
+    const result = await apiGet({
+      action: "getBillingStatusSummary",
+      days: 7
+    });
+
+    if (!result.success) return;
+
+    const data = result.data || {};
+
+    document.getElementById("cardOverdue").textContent =
+      (data.overdue || []).length;
+
+    document.getElementById("cardDueToday").textContent =
+      (data.dueToday || []).length;
+
+    document.getElementById("cardDueSoon").textContent =
+      (data.dueSoon || []).length;
+
+  } catch (err) {
+    console.error("Billing summary error:", err);
+  }
 }
 
 function normalizeInputDate(value) {
