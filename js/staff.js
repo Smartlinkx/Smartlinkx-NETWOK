@@ -43,6 +43,37 @@ function bindStaffEvents() {
   if (cancelEditBtn) {
     cancelEditBtn.addEventListener("click", resetFormMode);
   }
+
+  bindInstallationDateAutoDueDay();
+}
+
+function bindInstallationDateAutoDueDay() {
+  const installationDateEl = document.getElementById("installation_date");
+  if (!installationDateEl) return;
+
+  installationDateEl.addEventListener("change", () => {
+    updateDueDayFromInstallationDate();
+  });
+}
+
+function updateDueDayFromInstallationDate() {
+  const installationDateEl = document.getElementById("installation_date");
+  const dueDayEl = document.getElementById("due_day");
+  if (!installationDateEl || !dueDayEl) return;
+
+  const value = installationDateEl.value;
+  if (!value) {
+    dueDayEl.value = "";
+    return;
+  }
+
+  const d = new Date(value);
+  if (isNaN(d.getTime())) {
+    dueDayEl.value = "";
+    return;
+  }
+
+  dueDayEl.value = d.getDate();
 }
 
 async function loadSubscribers() {
@@ -135,7 +166,7 @@ function startEdit(subscriberId) {
   document.getElementById("plan_name").value = item.plan_name || "";
   document.getElementById("monthly_fee").value = item.monthly_fee || "";
   document.getElementById("installation_date").value = normalizeInputDate(item.installation_date);
-  document.getElementById("due_day").value = item.due_day || "";
+  updateDueDayFromInstallationDate();
   document.getElementById("status").value = item.status || "ACTIVE";
   document.getElementById("portal_password").value = item.portal_password || "";
   document.getElementById("MAC_address").value = item.MAC_address || "";
@@ -287,15 +318,9 @@ async function loadBillingSummary() {
 
     const data = result.data || {};
 
-    document.getElementById("cardOverdue").textContent =
-      (data.overdue || []).length;
-
-    document.getElementById("cardDueToday").textContent =
-      (data.dueToday || []).length;
-
-    document.getElementById("cardDueSoon").textContent =
-      (data.dueSoon || []).length;
-
+    document.getElementById("cardOverdue").textContent = (data.overdue || []).length;
+    document.getElementById("cardDueToday").textContent = (data.dueToday || []).length;
+    document.getElementById("cardDueSoon").textContent = (data.dueSoon || []).length;
   } catch (err) {
     console.error("Billing summary error:", err);
   }
