@@ -1,21 +1,43 @@
 let subscribersCache = [];
 let isEditMode = false;
+let isBooting = false;
+let isLoadingSubscribers = false;
+let isLoadingBilling = false;
+let isLoadingPayments = false;
+let isLoadingLedger = false;
+let isGeneratingBilling = false;
+let isSavingSubscriber = false;
+let isSavingPayment = false;
+let isLoadingDashboard = false;
 
-document.addEventListener("DOMContentLoaded", async () => {
-  const user = requireRole("ADMIN");
-  if (!user) return;
+document.addEventListener("DOMContentLoaded", initAdminPage);
 
-  const welcome = document.getElementById("welcomeText");
-  if (welcome) {
-    welcome.textContent = `Welcome, ${user.full_name || user.username}`;
+async function initAdminPage() {
+  if (isBooting) return;
+  isBooting = true;
+
+  try {
+    const user = requireRole("ADMIN");
+    if (!user) return;
+
+    setText("welcomeText", `Welcome, ${user.full_name || user.username || "Admin"}`);
+
+    bindAdminEvents();
+
+    await Promise.allSettled([
+      loadSubscribers(),
+      loadBilling(),
+      loadBillingSummary(),
+      loadPayments(),
+      loadDashboardSummary()
+    ]);
+  } catch (err) {
+    console.error("Admin init error:", err);
+    showMessage("pageMessage", "Failed to initialize admin page.", true);
+  } finally {
+    isBooting = false;
   }
-
-  bindAdminEvents();
-  await loadSubscribers();
-  await loadBilling();
-  await loadBillingSummary();
-  await loadPayments();
-});
+}
 
 function bindAdminEvents() {
   const logoutBtn = document.getElementById("logoutBtn");
@@ -25,6 +47,7 @@ function bindAdminEvents() {
   if (addForm) {
     addForm.addEventListener("submit", async (e) => {
       e.preventDefault();
+      if (isSavingSubscriber) return;
       if (isEditMode) {
         await updateSubscriber();
       } else {
@@ -37,6 +60,7 @@ function bindAdminEvents() {
   if (paymentForm) {
     paymentForm.addEventListener("submit", async (e) => {
       e.preventDefault();
+      if (isSavingPayment) return;
       await addPayment();
     });
   }
@@ -71,10 +95,7 @@ function bindAdminEvents() {
 function bindInstallationDateAutoDueDay() {
   const installationDateEl = document.getElementById("installation_date");
   if (!installationDateEl) return;
-
-  installationDateEl.addEventListener("change", () => {
-    updateDueDayFromInstallationDate();
-  });
+  installationDateEl.addEventListener("change", updateDueDayFromInstallationDate);
 }
 
 function updateDueDayFromInstallationDate() {
@@ -94,39 +115,69 @@ function updateDueDayFromInstallationDate() {
     return;
   }
 
-  dueDayEl.value = d.getDate();
+  dueDayEl.value = String(d.getDate());
+}
+
+async function loadDashboardSummary() {
+  if (isLoadingDashboard) return;
+  isLoadingDashboard = true;
+
+  try {
+    const result = await apiGet({ action: "getDashboardSummary" });
+    if (!result || !result.success) return;
+
+    const d = result.data || {};
+
+    setText("cardTotal", d.totalSubscribers || 0);
+    setText("cardActive", d.activeSubscribers || 0);
+    setText("cardDisabled", d.tempDisabledSubscribers || 0);
+    setText("cardDisconnected", d.disconnectedSubscribers || 0);
+    setText("cardOverdue", d.overdue || 0);
+    setText("cardDueToday", d.dueToday || 0);
+    setText("cardDueSoon", d.dueSoon || 0);
+  } catch (err) {
+    console.error("loadDashboardSummary error:", err);
+  } finally {
+    isLoadingDashboard = false;
+  }
 }
 
 async function loadSubscribers() {
+  if (isLoadingSubscribers) return;
+  isLoadingSubscribers = true;
+
   try {
     showMessage("pageMessage", "Loading subscribers...", false);
 
     const result = await apiGet({ action: "getSubscribers" });
 
-    if (!result.success) {
-      showMessage("pageMessage", result.message || "Failed to load subscribers.", true);
+    if (!result || !result.success) {
+      showMessage("pageMessage", result?.message || "Failed to load subscribers.", true);
       return;
     }
 
-    subscribersCache = result.data || [];
-    renderSubscribers();
+    subscribersCache = Array.isArray(result.data) ? result.data : [];
+    renderSubscribers(getValue("searchInput"));
     updateSummaryCards();
     showMessage("pageMessage", "Subscribers loaded successfully.", false);
   } catch (err) {
+    console.error("loadSubscribers error:", err);
     showMessage("pageMessage", "Unable to load subscribers.", true);
+  } finally {
+    isLoadingSubscribers = false;
   }
 }
 
 function updateSummaryCards() {
   const total = subscribersCache.length;
-  const active = subscribersCache.filter(x => String(x.status).toUpperCase() === "ACTIVE").length;
-  const disabled = subscribersCache.filter(x => String(x.status).toUpperCase() === "TEMP DISABLED").length;
-  const disconnected = subscribersCache.filter(x => String(x.status).toUpperCase() === "DISCONNECTED").length;
+  const active = subscribersCache.filter(x => upper(x.status) === "ACTIVE").length;
+  const disabled = subscribersCache.filter(x => upper(x.status) === "TEMP DISABLED").length;
+  const disconnected = subscribersCache.filter(x => upper(x.status) === "DISCONNECTED").length;
 
-  document.getElementById("cardTotal").textContent = total;
-  document.getElementById("cardActive").textContent = active;
-  document.getElementById("cardDisabled").textContent = disabled;
-  document.getElementById("cardDisconnected").textContent = disconnected;
+  setText("cardTotal", total);
+  setText("cardActive", active);
+  setText("cardDisabled", disabled);
+  setText("cardDisconnected", disconnected);
 }
 
 function renderSubscribers(keyword = "") {
@@ -136,21 +187,21 @@ function renderSubscribers(keyword = "") {
   let rows = [...subscribersCache];
 
   if (keyword) {
-    const q = keyword.toLowerCase();
+    const q = String(keyword).toLowerCase();
     rows = rows.filter(item =>
-      String(item.subscriber_id).toLowerCase().includes(q) ||
-      String(item.account_no).toLowerCase().includes(q) ||
-      String(item.full_name).toLowerCase().includes(q) ||
-      String(item.contact_number).toLowerCase().includes(q) ||
-      String(item.plan_name).toLowerCase().includes(q) ||
-      String(item.assigned_ip).toLowerCase().includes(q) ||
-      String(item.MAC_address).toLowerCase().includes(q) ||
-      String(item.olt_port).toLowerCase().includes(q) ||
-      String(item.onu_serial).toLowerCase().includes(q)
+      String(item.subscriber_id || "").toLowerCase().includes(q) ||
+      String(item.account_no || "").toLowerCase().includes(q) ||
+      String(item.full_name || "").toLowerCase().includes(q) ||
+      String(item.contact_number || "").toLowerCase().includes(q) ||
+      String(item.plan_name || "").toLowerCase().includes(q) ||
+      String(item.assigned_ip || "").toLowerCase().includes(q) ||
+      String(item.MAC_address || "").toLowerCase().includes(q) ||
+      String(item.olt_port || "").toLowerCase().includes(q) ||
+      String(item.onu_serial || "").toLowerCase().includes(q)
     );
   }
 
-  if (rows.length === 0) {
+  if (!rows.length) {
     tbody.innerHTML = `
       <tr>
         <td colspan="12" class="empty-cell">No subscribers found.</td>
@@ -184,12 +235,8 @@ function renderSubscribers(keyword = "") {
 }
 
 async function openLedger(accountNo, fullName) {
-  const accountEl = document.getElementById("ledger_account_no");
-  const nameEl = document.getElementById("ledger_full_name");
-
-  if (accountEl) accountEl.value = accountNo || "";
-  if (nameEl) nameEl.value = fullName || "";
-
+  setValue("ledger_account_no", accountNo || "");
+  setValue("ledger_full_name", fullName || "");
   await loadLedger(accountNo, fullName);
 
   const ledgerSection = document.getElementById("ledgerSection");
@@ -209,27 +256,27 @@ function startEdit(subscriberId) {
 
   isEditMode = true;
 
-  document.getElementById("formTitle").textContent = "Edit Subscriber";
-  document.getElementById("saveBtn").textContent = "Update Subscriber";
-  document.getElementById("cancelEditBtn").style.display = "inline-block";
+  setText("formTitle", "Edit Subscriber");
+  setText("saveBtn", "Update Subscriber");
+  setDisplay("cancelEditBtn", "inline-block");
 
-  document.getElementById("subscriber_id").value = item.subscriber_id || "";
-  document.getElementById("account_no").value = item.account_no || "";
-  document.getElementById("full_name").value = item.full_name || "";
-  document.getElementById("address").value = item.address || "";
-  document.getElementById("contact_number").value = item.contact_number || "";
-  document.getElementById("email").value = item.email || "";
-  document.getElementById("plan_name").value = item.plan_name || "";
-  document.getElementById("monthly_fee").value = item.monthly_fee || "";
-  document.getElementById("installation_date").value = normalizeInputDate(item.installation_date);
+  setValue("subscriber_id", item.subscriber_id || "");
+  setValue("account_no", item.account_no || "");
+  setValue("full_name", item.full_name || "");
+  setValue("address", item.address || "");
+  setValue("contact_number", item.contact_number || "");
+  setValue("email", item.email || "");
+  setValue("plan_name", item.plan_name || "");
+  setValue("monthly_fee", item.monthly_fee || "");
+  setValue("installation_date", normalizeInputDate(item.installation_date));
   updateDueDayFromInstallationDate();
-  document.getElementById("status").value = item.status || "ACTIVE";
-  document.getElementById("portal_password").value = item.portal_password || "";
-  document.getElementById("MAC_address").value = item.MAC_address || "";
-  document.getElementById("assigned_ip").value = item.assigned_ip || "";
-  document.getElementById("olt_port").value = item.olt_port || "";
-  document.getElementById("onu_serial").value = item.onu_serial || "";
-  document.getElementById("remarks").value = item.remarks || "";
+  setValue("status", item.status || "ACTIVE");
+  setValue("portal_password", item.portal_password || "");
+  setValue("MAC_address", item.MAC_address || "");
+  setValue("assigned_ip", item.assigned_ip || "");
+  setValue("olt_port", item.olt_port || "");
+  setValue("onu_serial", item.onu_serial || "");
+  setValue("remarks", item.remarks || "");
 
   showMessage("formMessage", "Editing subscriber: " + (item.full_name || item.account_no), false);
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -237,15 +284,22 @@ function startEdit(subscriberId) {
 
 function resetFormMode() {
   isEditMode = false;
-  document.getElementById("addSubscriberForm").reset();
-  document.getElementById("subscriber_id").value = "";
-  document.getElementById("formTitle").textContent = "Add New Subscriber";
-  document.getElementById("saveBtn").textContent = "Save Subscriber";
-  document.getElementById("cancelEditBtn").style.display = "none";
+
+  const form = document.getElementById("addSubscriberForm");
+  if (form) form.reset();
+
+  setValue("subscriber_id", "");
+  setValue("account_no", "");
+  setText("formTitle", "Add New Subscriber");
+  setText("saveBtn", "Save Subscriber");
+  setDisplay("cancelEditBtn", "none");
   showMessage("formMessage", "", false);
 }
 
 async function addSubscriber() {
+  if (isSavingSubscriber) return;
+  isSavingSubscriber = true;
+
   const payload = collectFormPayload("addSubscriber");
 
   try {
@@ -253,8 +307,8 @@ async function addSubscriber() {
 
     const result = await apiPost(payload);
 
-    if (!result.success) {
-      showMessage("formMessage", result.message || "Failed to add subscriber.", true);
+    if (!result || !result.success) {
+      showMessage("formMessage", result?.message || "Failed to add subscriber.", true);
       return;
     }
 
@@ -266,13 +320,23 @@ async function addSubscriber() {
       "Subscriber added successfully." + (newAccountNo ? " Account No: " + newAccountNo : ""),
       false
     );
-    await loadSubscribers();
+
+    await Promise.allSettled([
+      loadSubscribers(),
+      loadDashboardSummary()
+    ]);
   } catch (err) {
+    console.error("addSubscriber error:", err);
     showMessage("formMessage", "Unable to save subscriber.", true);
+  } finally {
+    isSavingSubscriber = false;
   }
 }
 
 async function updateSubscriber() {
+  if (isSavingSubscriber) return;
+  isSavingSubscriber = true;
+
   const payload = collectFormPayload("updateSubscriber");
 
   try {
@@ -280,62 +344,75 @@ async function updateSubscriber() {
 
     const result = await apiPost(payload);
 
-    if (!result.success) {
-      showMessage("formMessage", result.message || "Failed to update subscriber.", true);
+    if (!result || !result.success) {
+      showMessage("formMessage", result?.message || "Failed to update subscriber.", true);
       return;
     }
 
     resetFormMode();
     showMessage("formMessage", "Subscriber updated successfully.", false);
-    await loadSubscribers();
+
+    await Promise.allSettled([
+      loadSubscribers(),
+      loadDashboardSummary()
+    ]);
   } catch (err) {
+    console.error("updateSubscriber error:", err);
     showMessage("formMessage", "Unable to update subscriber.", true);
+  } finally {
+    isSavingSubscriber = false;
   }
 }
 
 function collectFormPayload(actionName) {
   const payload = {
     action: actionName,
-    subscriber_id: document.getElementById("subscriber_id").value.trim(),
-    full_name: document.getElementById("full_name").value.trim(),
-    address: document.getElementById("address").value.trim(),
-    contact_number: document.getElementById("contact_number").value.trim(),
-    email: document.getElementById("email").value.trim(),
-    plan_name: document.getElementById("plan_name").value.trim(),
-    monthly_fee: document.getElementById("monthly_fee").value.trim(),
-    installation_date: document.getElementById("installation_date").value.trim(),
-    due_day: document.getElementById("due_day").value.trim(),
-    status: document.getElementById("status").value.trim(),
-    portal_password: document.getElementById("portal_password").value.trim(),
-    MAC_address: document.getElementById("MAC_address").value.trim(),
-    assigned_ip: document.getElementById("assigned_ip").value.trim(),
-    olt_port: document.getElementById("olt_port").value.trim(),
-    onu_serial: document.getElementById("onu_serial").value.trim(),
-    remarks: document.getElementById("remarks").value.trim()
+    subscriber_id: getValue("subscriber_id"),
+    full_name: getValue("full_name"),
+    address: getValue("address"),
+    contact_number: getValue("contact_number"),
+    email: getValue("email"),
+    plan_name: getValue("plan_name"),
+    monthly_fee: getValue("monthly_fee"),
+    installation_date: getValue("installation_date"),
+    due_day: getValue("due_day"),
+    status: getValue("status"),
+    portal_password: getValue("portal_password"),
+    MAC_address: getValue("MAC_address"),
+    assigned_ip: getValue("assigned_ip"),
+    olt_port: getValue("olt_port"),
+    onu_serial: getValue("onu_serial"),
+    remarks: getValue("remarks")
   };
 
   if (actionName === "updateSubscriber") {
-    payload.account_no = document.getElementById("account_no").value.trim();
+    payload.account_no = getValue("account_no");
   }
 
   return payload;
 }
 
 async function loadBilling() {
+  if (isLoadingBilling) return;
+  isLoadingBilling = true;
+
   try {
     showMessage("billingMessage", "Loading billing...", false);
 
     const result = await apiGet({ action: "getBilling" });
 
-    if (!result.success) {
-      showMessage("billingMessage", result.message || "Failed to load billing.", true);
+    if (!result || !result.success) {
+      showMessage("billingMessage", result?.message || "Failed to load billing.", true);
       return;
     }
 
-    renderBilling(result.data || []);
+    renderBilling(Array.isArray(result.data) ? result.data : []);
     showMessage("billingMessage", "Billing loaded successfully.", false);
   } catch (err) {
+    console.error("loadBilling error:", err);
     showMessage("billingMessage", "Failed to load billing.", true);
+  } finally {
+    isLoadingBilling = false;
   }
 }
 
@@ -344,7 +421,7 @@ function renderBilling(data) {
   if (!tbody) return;
 
   if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="empty-cell">No billing data.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" class="empty-cell">No billing data.</td></tr>`;
     return;
   }
 
@@ -357,6 +434,8 @@ function renderBilling(data) {
       <td>${escapeHtml(item.billing_month)}</td>
       <td>${escapeHtml(item.due_date)}</td>
       <td>${formatMoney(item.amount)}</td>
+      <td>${formatMoney(item.applied_payment || 0)}</td>
+      <td>${formatMoney(item.balance || 0)}</td>
       <td>${escapeHtml(item.status)}</td>
     </tr>
   `).join("");
@@ -369,50 +448,61 @@ async function loadBillingSummary() {
       days: 7
     });
 
-    if (!result.success) return;
+    if (!result || !result.success) return;
 
     const data = result.data || {};
 
-    document.getElementById("cardOverdue").textContent = (data.overdue || []).length;
-    document.getElementById("cardDueToday").textContent = (data.dueToday || []).length;
-    document.getElementById("cardDueSoon").textContent = (data.dueSoon || []).length;
+    setText("cardOverdue", (data.overdue || []).length);
+    setText("cardDueToday", (data.dueToday || []).length);
+    setText("cardDueSoon", (data.dueSoon || []).length);
   } catch (err) {
     console.error("Billing summary error:", err);
   }
 }
 
 async function generateBilling() {
+  if (isGeneratingBilling) return;
+  isGeneratingBilling = true;
+
   try {
     showMessage("billingMessage", "Generating billing...", false);
 
     const result = await apiPost({ action: "generateBilling" });
 
-    if (!result.success) {
-      showMessage("billingMessage", result.message || "Failed to generate billing.", true);
+    if (!result || !result.success) {
+      showMessage("billingMessage", result?.message || "Failed to generate billing.", true);
       return;
     }
 
     const totalCreated = result?.data?.total_created ?? 0;
-
     showMessage("billingMessage", `Billing generated successfully. Created: ${totalCreated}`, false);
 
-    await loadBilling();
-    await loadBillingSummary();
+    await Promise.allSettled([
+      loadBilling(),
+      loadBillingSummary(),
+      loadDashboardSummary()
+    ]);
   } catch (err) {
+    console.error("generateBilling error:", err);
     showMessage("billingMessage", "Failed to generate billing.", true);
+  } finally {
+    isGeneratingBilling = false;
   }
 }
 
 async function addPayment() {
+  if (isSavingPayment) return;
+  isSavingPayment = true;
+
   const payload = {
     action: "addPayment",
-    account_no: document.getElementById("payment_account_no").value.trim(),
-    full_name: document.getElementById("payment_full_name").value.trim(),
-    payment_date: document.getElementById("payment_date").value.trim(),
-    amount: document.getElementById("payment_amount").value.trim(),
-    payment_method: document.getElementById("payment_method").value.trim(),
-    reference: document.getElementById("payment_reference").value.trim(),
-    remarks: document.getElementById("payment_remarks").value.trim()
+    account_no: getValue("payment_account_no"),
+    full_name: getValue("payment_full_name"),
+    payment_date: getValue("payment_date"),
+    amount: getValue("payment_amount"),
+    payment_method: getValue("payment_method"),
+    reference: getValue("payment_reference"),
+    remarks: getValue("payment_remarks")
   };
 
   try {
@@ -420,34 +510,48 @@ async function addPayment() {
 
     const result = await apiPost(payload);
 
-    if (!result.success) {
-      showMessage("paymentMessage", result.message || "Failed to save payment.", true);
+    if (!result || !result.success) {
+      showMessage("paymentMessage", result?.message || "Failed to save payment.", true);
       return;
     }
 
-    document.getElementById("paymentForm").reset();
+    const form = document.getElementById("paymentForm");
+    if (form) form.reset();
+
     showMessage("paymentMessage", "Payment recorded successfully.", false);
 
-    await loadPayments();
-    await loadBilling();
-    await loadBillingSummary();
+    await Promise.allSettled([
+      loadPayments(),
+      loadBilling(),
+      loadBillingSummary(),
+      loadDashboardSummary()
+    ]);
   } catch (err) {
+    console.error("addPayment error:", err);
     showMessage("paymentMessage", "Unable to save payment.", true);
+  } finally {
+    isSavingPayment = false;
   }
 }
 
 async function loadPayments() {
+  if (isLoadingPayments) return;
+  isLoadingPayments = true;
+
   try {
     const result = await apiGet({ action: "getPayments" });
 
-    if (!result.success) {
-      showMessage("paymentMessage", result.message || "Failed to load payments.", true);
+    if (!result || !result.success) {
+      showMessage("paymentMessage", result?.message || "Failed to load payments.", true);
       return;
     }
 
-    renderPayments(result.data || []);
+    renderPayments(Array.isArray(result.data) ? result.data : []);
   } catch (err) {
+    console.error("loadPayments error:", err);
     showMessage("paymentMessage", "Failed to load payments.", true);
+  } finally {
+    isLoadingPayments = false;
   }
 }
 
@@ -475,8 +579,11 @@ function renderPayments(data) {
 }
 
 async function loadLedger(accountNoArg = "", fullNameArg = "") {
-  const accountNo = accountNoArg || document.getElementById("ledger_account_no").value.trim();
-  const fullName = fullNameArg || document.getElementById("ledger_full_name").value.trim();
+  if (isLoadingLedger) return;
+  isLoadingLedger = true;
+
+  const accountNo = accountNoArg || getValue("ledger_account_no");
+  const fullName = fullNameArg || getValue("ledger_full_name");
 
   try {
     showMessage("ledgerMessage", "Loading ledger...", false);
@@ -487,22 +594,29 @@ async function loadLedger(accountNoArg = "", fullNameArg = "") {
       full_name: fullName
     });
 
-    if (!result.success) {
-      showMessage("ledgerMessage", result.message || "Failed to load ledger.", true);
+    if (!result || !result.success) {
+      showMessage("ledgerMessage", result?.message || "Failed to load ledger.", true);
+      renderLedgerBills([]);
+      renderLedgerPayments([]);
+      setText("ledgerTotalUnpaid", formatMoney(0));
+      setText("ledgerTotalPaid", formatMoney(0));
       return;
     }
 
     const data = result.data || {};
 
-    document.getElementById("ledgerTotalUnpaid").textContent = formatMoney(data.total_unpaid || 0);
-    document.getElementById("ledgerTotalPaid").textContent = formatMoney(data.total_paid || 0);
+    setText("ledgerTotalUnpaid", formatMoney(data.total_unpaid || 0));
+    setText("ledgerTotalPaid", formatMoney(data.total_paid || 0));
 
-    renderLedgerBills(data.bills || []);
-    renderLedgerPayments(data.payments || []);
+    renderLedgerBills(Array.isArray(data.bills) ? data.bills : []);
+    renderLedgerPayments(Array.isArray(data.payments) ? data.payments : []);
 
     showMessage("ledgerMessage", "Ledger loaded successfully.", false);
   } catch (err) {
+    console.error("loadLedger error:", err);
     showMessage("ledgerMessage", "Failed to load ledger.", true);
+  } finally {
+    isLoadingLedger = false;
   }
 }
 
@@ -511,7 +625,7 @@ function renderLedgerBills(data) {
   if (!tbody) return;
 
   if (!data.length) {
-    tbody.innerHTML = `<tr><td colspan="5" class="empty-cell">No billing history.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="empty-cell">No billing history.</td></tr>`;
     return;
   }
 
@@ -521,6 +635,8 @@ function renderLedgerBills(data) {
       <td>${escapeHtml(item.billing_month)}</td>
       <td>${escapeHtml(item.due_date)}</td>
       <td>${formatMoney(item.amount)}</td>
+      <td>${formatMoney(item.applied_payment || 0)}</td>
+      <td>${formatMoney(item.balance || 0)}</td>
       <td>${escapeHtml(item.status)}</td>
     </tr>
   `).join("");
@@ -551,13 +667,42 @@ function normalizeInputDate(value) {
   if (!value) return "";
   const str = String(value);
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
   const d = new Date(value);
   if (isNaN(d.getTime())) return "";
-  return d.toISOString().slice(0, 10);
+
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 function escapeJs(value) {
   return String(value ?? "")
     .replace(/\\/g, "\\\\")
     .replace(/'/g, "\\'");
+}
+
+function getValue(id) {
+  const el = document.getElementById(id);
+  return el ? String(el.value || "").trim() : "";
+}
+
+function setValue(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.value = value ?? "";
+}
+
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = String(value ?? "");
+}
+
+function setDisplay(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = value;
+}
+
+function upper(value) {
+  return String(value || "").trim().toUpperCase();
 }
