@@ -31,7 +31,6 @@
 
       <div class="form-grid">
 
-        <!-- Account No -->
         <div class="form-group">
           <label>Account No</label>
           <input type="text" id="account_no" readonly placeholder="Auto-generated"/>
@@ -162,6 +161,37 @@
     </div>
   </div>
 
+  <!-- BILLING -->
+  <div class="card">
+    <div class="toolbar">
+      <h2 style="margin:0;">Billing</h2>
+    </div>
+
+    <div id="billingMessage" class="message"></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Billing ID</th>
+            <th>Account No</th>
+            <th>Name</th>
+            <th>Plan</th>
+            <th>Month</th>
+            <th>Due Date</th>
+            <th>Amount</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="billingTableBody">
+          <tr>
+            <td colspan="8" class="empty-cell">No billing data.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 
 <script src="assets/config.js"></script>
@@ -170,23 +200,3 @@
 
 </body>
 </html>
-
-<h2>Billing</h2>
-
-<p id="billingMessage"></p>
-
-<table border="1" width="100%">
-  <thead>
-    <tr>
-      <th>Billing ID</th>
-      <th>Account No</th>
-      <th>Name</th>
-      <th>Plan</th>
-      <th>Month</th>
-      <th>Due Date</th>
-      <th>Amount</th>
-      <th>Status</th>
-    </tr>
-  </thead>
-  <tbody id="billingTableBody"></tbody>
-</table>
