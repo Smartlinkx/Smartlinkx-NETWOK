@@ -1,3 +1,3 @@
 const APP_CONFIG = {
-  API_BASE_URL: "https://script.google.com/macros/s/AKfycbyXjkm7ulvdQZ_ZDtlH3xw1SlILt7Dg-JHfAekoBdWCA1E1o3WkHmSQPwDivS90Y5HqGQ/exec"
+  API_BASE_URL: "https://script.google.com/macros/s/AKfycbyKyb7mFIDrJ9vnjjgB1sqobpFyYPujm31v3pmmyPPuYTbznyhfxeeCzANQgWjFefKVkg/exec"
 };
