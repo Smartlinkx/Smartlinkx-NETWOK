@@ -169,9 +169,15 @@ async function addSubscriber() {
       return;
     }
 
-    resetFormMode();
     const newAccountNo = result?.data?.account_no || "";
-showMessage("formMessage", "Subscriber added successfully. Account No: " + newAccountNo, false);
+
+    resetFormMode();
+    showMessage(
+      "formMessage",
+      "Subscriber added successfully." + (newAccountNo ? " Account No: " + newAccountNo : ""),
+      false
+    );
+
     await loadSubscribers();
   } catch (err) {
     showMessage("formMessage", "Unable to save subscriber.", true);
@@ -200,10 +206,9 @@ async function updateSubscriber() {
 }
 
 function collectFormPayload(actionName) {
-  return {
+  const payload = {
     action: actionName,
     subscriber_id: document.getElementById("subscriber_id").value.trim(),
-    account_no: document.getElementById("account_no").value.trim(),
     full_name: document.getElementById("full_name").value.trim(),
     address: document.getElementById("address").value.trim(),
     contact_number: document.getElementById("contact_number").value.trim(),
@@ -220,6 +225,12 @@ function collectFormPayload(actionName) {
     onu_serial: document.getElementById("onu_serial").value.trim(),
     remarks: document.getElementById("remarks").value.trim()
   };
+
+  if (actionName === "updateSubscriber") {
+    payload.account_no = document.getElementById("account_no").value.trim();
+  }
+
+  return payload;
 }
 
 function normalizeInputDate(value) {
