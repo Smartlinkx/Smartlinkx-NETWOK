@@ -1,4 +1,5 @@
 let subscribersCache = [];
+let isEditMode = false;
 
 document.addEventListener("DOMContentLoaded", async () => {
   const user = requireRole("STAFF");
@@ -28,8 +29,17 @@ function bindStaffEvents() {
   if (addForm) {
     addForm.addEventListener("submit", async (e) => {
       e.preventDefault();
-      await addSubscriber();
+      if (isEditMode) {
+        await updateSubscriber();
+      } else {
+        await addSubscriber();
+      }
     });
+  }
+
+  const cancelEditBtn = document.getElementById("cancelEditBtn");
+  if (cancelEditBtn) {
+    cancelEditBtn.addEventListener("click", resetFormMode);
   }
 }
 
@@ -78,7 +88,7 @@ function renderSubscribers(keyword = "") {
   if (rows.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="10" class="empty-cell">No subscribers found.</td>
+        <td colspan="11" class="empty-cell">No subscribers found.</td>
       </tr>
     `;
     return;
@@ -86,6 +96,7 @@ function renderSubscribers(keyword = "") {
 
   tbody.innerHTML = rows.map(item => `
     <tr>
+      <td><button type="button" class="btn-light" onclick="startEdit('${escapeJs(item.subscriber_id)}')">Edit</button></td>
       <td>${escapeHtml(item.account_no)}</td>
       <td>${escapeHtml(item.full_name)}</td>
       <td>${escapeHtml(item.plan_name)}</td>
@@ -100,9 +111,97 @@ function renderSubscribers(keyword = "") {
   `).join("");
 }
 
+function startEdit(subscriberId) {
+  const item = subscribersCache.find(x => String(x.subscriber_id) === String(subscriberId));
+  if (!item) {
+    showMessage("formMessage", "Subscriber not found for edit.", true);
+    return;
+  }
+
+  isEditMode = true;
+
+  document.getElementById("formTitle").textContent = "Edit Subscriber";
+  document.getElementById("saveBtn").textContent = "Update Subscriber";
+  document.getElementById("cancelEditBtn").style.display = "inline-block";
+
+  document.getElementById("subscriber_id").value = item.subscriber_id || "";
+  document.getElementById("account_no").value = item.account_no || "";
+  document.getElementById("full_name").value = item.full_name || "";
+  document.getElementById("address").value = item.address || "";
+  document.getElementById("contact_number").value = item.contact_number || "";
+  document.getElementById("email").value = item.email || "";
+  document.getElementById("plan_name").value = item.plan_name || "";
+  document.getElementById("monthly_fee").value = item.monthly_fee || "";
+  document.getElementById("installation_date").value = normalizeInputDate(item.installation_date);
+  document.getElementById("due_day").value = item.due_day || "";
+  document.getElementById("status").value = item.status || "ACTIVE";
+  document.getElementById("portal_password").value = item.portal_password || "";
+  document.getElementById("MAC_address").value = item.MAC_address || "";
+  document.getElementById("assigned_ip").value = item.assigned_ip || "";
+  document.getElementById("olt_port").value = item.olt_port || "";
+  document.getElementById("onu_serial").value = item.onu_serial || "";
+  document.getElementById("remarks").value = item.remarks || "";
+
+  showMessage("formMessage", "Editing subscriber: " + (item.full_name || item.account_no), false);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function resetFormMode() {
+  isEditMode = false;
+  document.getElementById("addSubscriberForm").reset();
+  document.getElementById("subscriber_id").value = "";
+  document.getElementById("formTitle").textContent = "Add New Subscriber";
+  document.getElementById("saveBtn").textContent = "Save Subscriber";
+  document.getElementById("cancelEditBtn").style.display = "none";
+  showMessage("formMessage", "", false);
+}
+
 async function addSubscriber() {
-  const payload = {
-    action: "addSubscriber",
+  const payload = collectFormPayload("addSubscriber");
+
+  try {
+    showMessage("formMessage", "Saving subscriber...", false);
+
+    const result = await apiPost(payload);
+
+    if (!result.success) {
+      showMessage("formMessage", result.message || "Failed to add subscriber.", true);
+      return;
+    }
+
+    resetFormMode();
+    showMessage("formMessage", "Subscriber added successfully.", false);
+    await loadSubscribers();
+  } catch (err) {
+    showMessage("formMessage", "Unable to save subscriber.", true);
+  }
+}
+
+async function updateSubscriber() {
+  const payload = collectFormPayload("updateSubscriber");
+
+  try {
+    showMessage("formMessage", "Updating subscriber...", false);
+
+    const result = await apiPost(payload);
+
+    if (!result.success) {
+      showMessage("formMessage", result.message || "Failed to update subscriber.", true);
+      return;
+    }
+
+    resetFormMode();
+    showMessage("formMessage", "Subscriber updated successfully.", false);
+    await loadSubscribers();
+  } catch (err) {
+    showMessage("formMessage", "Unable to update subscriber.", true);
+  }
+}
+
+function collectFormPayload(actionName) {
+  return {
+    action: actionName,
+    subscriber_id: document.getElementById("subscriber_id").value.trim(),
     account_no: document.getElementById("account_no").value.trim(),
     full_name: document.getElementById("full_name").value.trim(),
     address: document.getElementById("address").value.trim(),
@@ -120,21 +219,17 @@ async function addSubscriber() {
     onu_serial: document.getElementById("onu_serial").value.trim(),
     remarks: document.getElementById("remarks").value.trim()
   };
+}
 
-  try {
-    showMessage("formMessage", "Saving subscriber...", false);
+function normalizeInputDate(value) {
+  if (!value) return "";
+  const str = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
 
-    const result = await apiPost(payload);
-
-    if (!result.success) {
-      showMessage("formMessage", result.message || "Failed to add subscriber.", true);
-      return;
-    }
-
-    document.getElementById("addSubscriberForm").reset();
-    showMessage("formMessage", "Subscriber added successfully.", false);
-    await loadSubscribers();
-  } catch (err) {
-    showMessage("formMessage", "Unable to save subscriber.", true);
-  }
+function escapeJs(value) {
+  return String(value ?? "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
