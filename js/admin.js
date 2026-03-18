@@ -2,7 +2,7 @@ let subscribersCache = [];
 let isEditMode = false;
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const user = requireRole("STAFF");
+  const user = requireRole("ADMIN");
   if (!user) return;
 
   const welcome = document.getElementById("welcomeText");
@@ -10,23 +10,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     welcome.textContent = `Welcome, ${user.full_name || user.username}`;
   }
 
-  bindStaffEvents();
+  bindAdminEvents();
   await loadSubscribers();
   await loadBilling();
   await loadBillingSummary();
   await loadPayments();
 });
 
-function bindStaffEvents() {
+function bindAdminEvents() {
   const logoutBtn = document.getElementById("logoutBtn");
   if (logoutBtn) logoutBtn.addEventListener("click", logout);
-
-  const searchInput = document.getElementById("searchInput");
-  if (searchInput) {
-    searchInput.addEventListener("input", () => {
-      renderSubscribers(searchInput.value.trim());
-    });
-  }
 
   const addForm = document.getElementById("addSubscriberForm");
   if (addForm) {
@@ -48,9 +41,21 @@ function bindStaffEvents() {
     });
   }
 
+  const searchInput = document.getElementById("searchInput");
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      renderSubscribers(searchInput.value.trim());
+    });
+  }
+
   const cancelEditBtn = document.getElementById("cancelEditBtn");
   if (cancelEditBtn) {
     cancelEditBtn.addEventListener("click", resetFormMode);
+  }
+
+  const genBtn = document.getElementById("generateBillingBtn");
+  if (genBtn) {
+    genBtn.addEventListener("click", generateBilling);
   }
 
   const loadLedgerBtn = document.getElementById("loadLedgerBtn");
@@ -105,10 +110,23 @@ async function loadSubscribers() {
 
     subscribersCache = result.data || [];
     renderSubscribers();
+    updateSummaryCards();
     showMessage("pageMessage", "Subscribers loaded successfully.", false);
   } catch (err) {
     showMessage("pageMessage", "Unable to load subscribers.", true);
   }
+}
+
+function updateSummaryCards() {
+  const total = subscribersCache.length;
+  const active = subscribersCache.filter(x => String(x.status).toUpperCase() === "ACTIVE").length;
+  const disabled = subscribersCache.filter(x => String(x.status).toUpperCase() === "TEMP DISABLED").length;
+  const disconnected = subscribersCache.filter(x => String(x.status).toUpperCase() === "DISCONNECTED").length;
+
+  document.getElementById("cardTotal").textContent = total;
+  document.getElementById("cardActive").textContent = active;
+  document.getElementById("cardDisabled").textContent = disabled;
+  document.getElementById("cardDisconnected").textContent = disconnected;
 }
 
 function renderSubscribers(keyword = "") {
@@ -135,7 +153,7 @@ function renderSubscribers(keyword = "") {
   if (rows.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="11" class="empty-cell">No subscribers found.</td>
+        <td colspan="12" class="empty-cell">No subscribers found.</td>
       </tr>
     `;
     return;
@@ -146,6 +164,7 @@ function renderSubscribers(keyword = "") {
       <td>
         <button type="button" class="btn-light" onclick="startEdit('${escapeJs(item.subscriber_id)}')">Edit</button>
       </td>
+      <td>${escapeHtml(item.subscriber_id)}</td>
       <td>${escapeHtml(item.account_no)}</td>
       <td>
         <a href="#" onclick="return openLedger('${escapeJs(item.account_no)}','${escapeJs(item.full_name)}')">
@@ -247,7 +266,6 @@ async function addSubscriber() {
       "Subscriber added successfully." + (newAccountNo ? " Account No: " + newAccountNo : ""),
       false
     );
-
     await loadSubscribers();
   } catch (err) {
     showMessage("formMessage", "Unable to save subscriber.", true);
@@ -360,6 +378,28 @@ async function loadBillingSummary() {
     document.getElementById("cardDueSoon").textContent = (data.dueSoon || []).length;
   } catch (err) {
     console.error("Billing summary error:", err);
+  }
+}
+
+async function generateBilling() {
+  try {
+    showMessage("billingMessage", "Generating billing...", false);
+
+    const result = await apiPost({ action: "generateBilling" });
+
+    if (!result.success) {
+      showMessage("billingMessage", result.message || "Failed to generate billing.", true);
+      return;
+    }
+
+    const totalCreated = result?.data?.total_created ?? 0;
+
+    showMessage("billingMessage", `Billing generated successfully. Created: ${totalCreated}`, false);
+
+    await loadBilling();
+    await loadBillingSummary();
+  } catch (err) {
+    showMessage("billingMessage", "Failed to generate billing.", true);
   }
 }
 
