@@ -42,6 +42,10 @@ function bindAdminEvents() {
     cancelEditBtn.addEventListener("click", resetFormMode);
   }
 }
+const genBtn = document.getElementById("generateBillingBtn");
+if (genBtn) {
+  genBtn.addEventListener("click", generateBilling);
+}
 
 async function loadSubscribers() {
   try {
