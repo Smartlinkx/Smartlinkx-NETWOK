@@ -58,6 +58,13 @@ function bindAdminEvents() {
     genBtn.addEventListener("click", generateBilling);
   }
 
+  const loadLedgerBtn = document.getElementById("loadLedgerBtn");
+  if (loadLedgerBtn) {
+    loadLedgerBtn.addEventListener("click", async () => {
+      await loadLedger();
+    });
+  }
+
   bindInstallationDateAutoDueDay();
 }
 
@@ -94,9 +101,7 @@ async function loadSubscribers() {
   try {
     showMessage("pageMessage", "Loading subscribers...", false);
 
-    const result = await apiGet({
-      action: "getSubscribers"
-    });
+    const result = await apiGet({ action: "getSubscribers" });
 
     if (!result.success) {
       showMessage("pageMessage", result.message || "Failed to load subscribers.", true);
@@ -357,9 +362,7 @@ async function generateBilling() {
   try {
     showMessage("billingMessage", "Generating billing...", false);
 
-    const result = await apiPost({
-      action: "generateBilling"
-    });
+    const result = await apiPost({ action: "generateBilling" });
 
     if (!result.success) {
       showMessage("billingMessage", result.message || "Failed to generate billing.", true);
@@ -445,6 +448,79 @@ function renderPayments(data) {
       <td>${escapeHtml(item.billing_id)}</td>
       <td>${escapeHtml(item.account_no)}</td>
       <td>${escapeHtml(item.full_name)}</td>
+      <td>${escapeHtml(item.payment_date)}</td>
+      <td>${formatMoney(item.amount)}</td>
+      <td>${escapeHtml(item.payment_method)}</td>
+      <td>${escapeHtml(item.reference)}</td>
+    </tr>
+  `).join("");
+}
+
+async function loadLedger() {
+  const accountNo = document.getElementById("ledger_account_no").value.trim();
+  const fullName = document.getElementById("ledger_full_name").value.trim();
+
+  try {
+    showMessage("ledgerMessage", "Loading ledger...", false);
+
+    const result = await apiGet({
+      action: "getSubscriberLedger",
+      account_no: accountNo,
+      full_name: fullName
+    });
+
+    if (!result.success) {
+      showMessage("ledgerMessage", result.message || "Failed to load ledger.", true);
+      return;
+    }
+
+    const data = result.data || {};
+
+    document.getElementById("ledgerTotalUnpaid").textContent = formatMoney(data.total_unpaid || 0);
+    document.getElementById("ledgerTotalPaid").textContent = formatMoney(data.total_paid || 0);
+
+    renderLedgerBills(data.bills || []);
+    renderLedgerPayments(data.payments || []);
+
+    showMessage("ledgerMessage", "Ledger loaded successfully.", false);
+  } catch (err) {
+    showMessage("ledgerMessage", "Failed to load ledger.", true);
+  }
+}
+
+function renderLedgerBills(data) {
+  const tbody = document.getElementById("ledgerBillsTableBody");
+  if (!tbody) return;
+
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-cell">No billing history.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.map(item => `
+    <tr>
+      <td>${escapeHtml(item.billing_id)}</td>
+      <td>${escapeHtml(item.billing_month)}</td>
+      <td>${escapeHtml(item.due_date)}</td>
+      <td>${formatMoney(item.amount)}</td>
+      <td>${escapeHtml(item.status)}</td>
+    </tr>
+  `).join("");
+}
+
+function renderLedgerPayments(data) {
+  const tbody = document.getElementById("ledgerPaymentsTableBody");
+  if (!tbody) return;
+
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty-cell">No payment history.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.map(item => `
+    <tr>
+      <td>${escapeHtml(item.payment_id)}</td>
+      <td>${escapeHtml(item.billing_id)}</td>
       <td>${escapeHtml(item.payment_date)}</td>
       <td>${formatMoney(item.amount)}</td>
       <td>${escapeHtml(item.payment_method)}</td>
