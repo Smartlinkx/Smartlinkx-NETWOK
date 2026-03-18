@@ -325,3 +325,5 @@ async function generateBilling() {
     showMessage("billingMessage", "Failed to generate billing.", true);
   }
 }
+
+await loadBilling();
