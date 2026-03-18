@@ -245,3 +245,41 @@ function normalizeInputDate(value) {
 function escapeJs(value) {
   return String(value ?? "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
+
+async function loadBilling() {
+  try {
+    const result = await apiGet({ action: "getBilling" });
+
+    if (!result.success) {
+      showMessage("billingMessage", result.message, true);
+      return;
+    }
+
+    renderBilling(result.data || []);
+  } catch (err) {
+    showMessage("billingMessage", "Failed to load billing.", true);
+  }
+}
+
+function renderBilling(data) {
+  const tbody = document.getElementById("billingTableBody");
+  if (!tbody) return;
+
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="8">No billing data</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.map(item => `
+    <tr>
+      <td>${item.billing_id}</td>
+      <td>${item.account_no}</td>
+      <td>${item.full_name}</td>
+      <td>${item.plan_name}</td>
+      <td>${item.billing_month}</td>
+      <td>${item.due_date}</td>
+      <td>${formatMoney(item.amount)}</td>
+      <td>${item.status}</td>
+    </tr>
+  `).join("");
+}
