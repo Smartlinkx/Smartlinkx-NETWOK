@@ -31,6 +31,7 @@
 
       <div class="form-grid">
 
+        <!-- Account No -->
         <div class="form-group">
           <label>Account No</label>
           <input type="text" id="account_no" readonly placeholder="Auto-generated"/>
@@ -161,37 +162,6 @@
     </div>
   </div>
 
-  <!-- BILLING -->
-  <div class="card">
-    <div class="toolbar">
-      <h2 style="margin:0;">Billing</h2>
-    </div>
-
-    <div id="billingMessage" class="message"></div>
-
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Billing ID</th>
-            <th>Account No</th>
-            <th>Name</th>
-            <th>Plan</th>
-            <th>Month</th>
-            <th>Due Date</th>
-            <th>Amount</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody id="billingTableBody">
-          <tr>
-            <td colspan="8" class="empty-cell">No billing data.</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
 </div>
 
 <script src="assets/config.js"></script>
@@ -200,38 +170,3 @@
 
 </body>
 </html>
-<div class="layout">
-
-  <!-- SIDEBAR -->
-  <div class="sidebar">
-    <button class="nav-btn active" data-target="dashboardSection">Dashboard</button>
-    <button class="nav-btn" data-target="formSection">New Subscriber</button>
-    <button class="nav-btn" data-target="listSection">Subscribers</button>
-    <button class="nav-btn" data-target="billingSection">Billing</button>
-  </div>
-
-  <!-- CONTENT -->
-  <div class="content">
-
-    <!-- DASHBOARD -->
-    <div id="dashboardSection" class="page-section active">
-      <!-- KEEP your cards here -->
-    </div>
-
-    <!-- FORM -->
-    <div id="formSection" class="page-section">
-      <!-- KEEP your Add Subscriber FORM here -->
-    </div>
-
-    <!-- LIST -->
-    <div id="listSection" class="page-section">
-      <!-- KEEP your Subscribers table here -->
-    </div>
-
-    <!-- BILLING -->
-    <div id="billingSection" class="page-section">
-      <!-- KEEP your Billing table here -->
-    </div>
-
-  </div>
-</div>
