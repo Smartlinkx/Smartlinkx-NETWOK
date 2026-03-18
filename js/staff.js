@@ -11,6 +11,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   bindStaffEvents();
+  initSidebarNavigation();
   await loadSubscribers();
   await loadBilling();
 });
