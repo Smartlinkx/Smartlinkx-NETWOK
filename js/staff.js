@@ -9,6 +9,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     welcome.textContent = `Welcome, ${user.full_name || user.username}`;
   }
 
+  bindStaffEvents();
+  await loadSubscribers();
+});
+
+function bindStaffEvents() {
   const logoutBtn = document.getElementById("logoutBtn");
   if (logoutBtn) logoutBtn.addEventListener("click", logout);
 
@@ -19,8 +24,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  await loadSubscribers();
-});
+  const addForm = document.getElementById("addSubscriberForm");
+  if (addForm) {
+    addForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await addSubscriber();
+    });
+  }
+}
 
 async function loadSubscribers() {
   try {
@@ -87,4 +98,43 @@ function renderSubscribers(keyword = "") {
       <td>${escapeHtml(item.onu_serial)}</td>
     </tr>
   `).join("");
+}
+
+async function addSubscriber() {
+  const payload = {
+    action: "addSubscriber",
+    account_no: document.getElementById("account_no").value.trim(),
+    full_name: document.getElementById("full_name").value.trim(),
+    address: document.getElementById("address").value.trim(),
+    contact_number: document.getElementById("contact_number").value.trim(),
+    email: document.getElementById("email").value.trim(),
+    plan_name: document.getElementById("plan_name").value.trim(),
+    monthly_fee: document.getElementById("monthly_fee").value.trim(),
+    installation_date: document.getElementById("installation_date").value.trim(),
+    due_day: document.getElementById("due_day").value.trim(),
+    status: document.getElementById("status").value.trim(),
+    portal_password: document.getElementById("portal_password").value.trim(),
+    MAC_address: document.getElementById("MAC_address").value.trim(),
+    assigned_ip: document.getElementById("assigned_ip").value.trim(),
+    olt_port: document.getElementById("olt_port").value.trim(),
+    onu_serial: document.getElementById("onu_serial").value.trim(),
+    remarks: document.getElementById("remarks").value.trim()
+  };
+
+  try {
+    showMessage("formMessage", "Saving subscriber...", false);
+
+    const result = await apiPost(payload);
+
+    if (!result.success) {
+      showMessage("formMessage", result.message || "Failed to add subscriber.", true);
+      return;
+    }
+
+    document.getElementById("addSubscriberForm").reset();
+    showMessage("formMessage", "Subscriber added successfully.", false);
+    await loadSubscribers();
+  } catch (err) {
+    showMessage("formMessage", "Unable to save subscriber.", true);
+  }
 }
