@@ -21,7 +21,7 @@ async function initAdminPage() {
     if (!user) return;
 
     setText("welcomeText", `Welcome, ${user.full_name || user.username || "Admin"}`);
-    initSidebarNavigation();
+
     bindAdminEvents();
 
     await Promise.allSettled([
@@ -48,6 +48,7 @@ function bindAdminEvents() {
     addForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       if (isSavingSubscriber) return;
+
       if (isEditMode) {
         await updateSubscriber();
       } else {
@@ -90,65 +91,6 @@ function bindAdminEvents() {
   }
 
   bindInstallationDateAutoDueDay();
-}
-
-function initSidebarNavigation() {
-  const sidebar = document.getElementById("sidebar");
-  const sidebarToggle = document.getElementById("sidebarToggle");
-  const sidebarOverlay = document.getElementById("sidebarOverlay");
-  const dropdownToggles = document.querySelectorAll(".nav-dropdown-toggle");
-  const navItems = document.querySelectorAll(".nav-item[data-target], .nav-subitem[data-target]");
-
-  if (sidebarToggle) {
-    sidebarToggle.addEventListener("click", () => {
-      if (window.innerWidth <= 900) {
-        sidebar.classList.toggle("mobile-open");
-        sidebarOverlay.classList.toggle("show");
-      } else {
-        sidebar.classList.toggle("collapsed");
-      }
-    });
-  }
-
-  if (sidebarOverlay) {
-    sidebarOverlay.addEventListener("click", () => {
-      sidebar.classList.remove("mobile-open");
-      sidebarOverlay.classList.remove("show");
-    });
-  }
-
-  dropdownToggles.forEach(toggle => {
-    toggle.addEventListener("click", () => {
-      const group = toggle.closest(".nav-group");
-      if (!group) return;
-      group.classList.toggle("open");
-    });
-  });
-
-  navItems.forEach(item => {
-    item.addEventListener("click", () => {
-      const targetId = item.getAttribute("data-target");
-      const target = document.getElementById(targetId);
-      if (!target) return;
-
-      document.querySelectorAll(".nav-item.active, .nav-subitem.active").forEach(el => {
-        el.classList.remove("active");
-      });
-      item.classList.add("active");
-
-      const group = item.closest(".nav-group");
-      if (group) {
-        group.classList.add("open");
-      }
-
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
-
-      if (window.innerWidth <= 900) {
-        sidebar.classList.remove("mobile-open");
-        sidebarOverlay.classList.remove("show");
-      }
-    });
-  });
 }
 
 function bindInstallationDateAutoDueDay() {
@@ -195,6 +137,7 @@ async function loadDashboardSummary() {
     setText("cardDueToday", d.dueToday || 0);
     setText("cardDueSoon", d.dueSoon || 0);
 
+    // Optional extra cards if you add them in HTML later
     setTextIfExists("cardReceivable", formatMoney(d.totalReceivable || 0));
     setTextIfExists("cardAdvanceCredit", formatMoney(d.totalAdvanceCredit || 0));
     setTextIfExists("cardCollectedToday", formatMoney(d.collectedToday || 0));
@@ -749,7 +692,47 @@ function normalizeInputDate(value) {
   if (!value) return "";
   const str = String(value);
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
   const d = new Date(value);
   if (isNaN(d.getTime())) return "";
-  return d.toISOString().slice(0, 10);
+
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function escapeJs(value) {
+  return String(value ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'");
+}
+
+function getValue(id) {
+  const el = document.getElementById(id);
+  return el ? String(el.value || "").trim() : "";
+}
+
+function setValue(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.value = value ?? "";
+}
+
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = String(value ?? "");
+}
+
+function setTextIfExists(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = String(value ?? "");
+}
+
+function setDisplay(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = value;
+}
+
+function upper(value) {
+  return String(value || "").trim().toUpperCase();
 }
