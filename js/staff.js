@@ -10,7 +10,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     welcome.textContent = `Welcome, ${user.full_name || user.username}`;
   }
 
-  initSidebarNavigation();
   bindStaffEvents();
   await loadSubscribers();
   await loadBilling();
@@ -64,65 +63,6 @@ function bindStaffEvents() {
   bindInstallationDateAutoDueDay();
 }
 
-function initSidebarNavigation() {
-  const sidebar = document.getElementById("sidebar");
-  const sidebarToggle = document.getElementById("sidebarToggle");
-  const sidebarOverlay = document.getElementById("sidebarOverlay");
-  const dropdownToggles = document.querySelectorAll(".nav-dropdown-toggle");
-  const navItems = document.querySelectorAll(".nav-item[data-target], .nav-subitem[data-target]");
-
-  if (sidebarToggle) {
-    sidebarToggle.addEventListener("click", () => {
-      if (window.innerWidth <= 900) {
-        sidebar.classList.toggle("mobile-open");
-        sidebarOverlay.classList.toggle("show");
-      } else {
-        sidebar.classList.toggle("collapsed");
-      }
-    });
-  }
-
-  if (sidebarOverlay) {
-    sidebarOverlay.addEventListener("click", () => {
-      sidebar.classList.remove("mobile-open");
-      sidebarOverlay.classList.remove("show");
-    });
-  }
-
-  dropdownToggles.forEach(toggle => {
-    toggle.addEventListener("click", () => {
-      const group = toggle.closest(".nav-group");
-      if (!group) return;
-      group.classList.toggle("open");
-    });
-  });
-
-  navItems.forEach(item => {
-    item.addEventListener("click", () => {
-      const targetId = item.getAttribute("data-target");
-      const target = document.getElementById(targetId);
-      if (!target) return;
-
-      document.querySelectorAll(".nav-item.active, .nav-subitem.active").forEach(el => {
-        el.classList.remove("active");
-      });
-      item.classList.add("active");
-
-      const group = item.closest(".nav-group");
-      if (group) {
-        group.classList.add("open");
-      }
-
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
-
-      if (window.innerWidth <= 900) {
-        sidebar.classList.remove("mobile-open");
-        sidebarOverlay.classList.remove("show");
-      }
-    });
-  });
-}
-
 function bindInstallationDateAutoDueDay() {
   const installationDateEl = document.getElementById("installation_date");
   if (!installationDateEl) return;
@@ -164,7 +104,7 @@ async function loadSubscribers() {
     }
 
     subscribersCache = result.data || [];
-    renderSubscribers(getValue("searchInput"));
+    renderSubscribers();
     showMessage("pageMessage", "Subscribers loaded successfully.", false);
   } catch (err) {
     showMessage("pageMessage", "Unable to load subscribers.", true);
@@ -178,17 +118,17 @@ function renderSubscribers(keyword = "") {
   let rows = [...subscribersCache];
 
   if (keyword) {
-    const q = String(keyword).toLowerCase();
+    const q = keyword.toLowerCase();
     rows = rows.filter(item =>
-      String(item.subscriber_id || "").toLowerCase().includes(q) ||
-      String(item.account_no || "").toLowerCase().includes(q) ||
-      String(item.full_name || "").toLowerCase().includes(q) ||
-      String(item.contact_number || "").toLowerCase().includes(q) ||
-      String(item.plan_name || "").toLowerCase().includes(q) ||
-      String(item.assigned_ip || "").toLowerCase().includes(q) ||
-      String(item.MAC_address || "").toLowerCase().includes(q) ||
-      String(item.olt_port || "").toLowerCase().includes(q) ||
-      String(item.onu_serial || "").toLowerCase().includes(q)
+      String(item.subscriber_id).toLowerCase().includes(q) ||
+      String(item.account_no).toLowerCase().includes(q) ||
+      String(item.full_name).toLowerCase().includes(q) ||
+      String(item.contact_number).toLowerCase().includes(q) ||
+      String(item.plan_name).toLowerCase().includes(q) ||
+      String(item.assigned_ip).toLowerCase().includes(q) ||
+      String(item.MAC_address).toLowerCase().includes(q) ||
+      String(item.olt_port).toLowerCase().includes(q) ||
+      String(item.onu_serial).toLowerCase().includes(q)
     );
   }
 
@@ -205,11 +145,7 @@ function renderSubscribers(keyword = "") {
     <tr>
       <td><button type="button" class="btn-light" onclick="startEdit('${escapeJs(item.subscriber_id)}')">Edit</button></td>
       <td>${escapeHtml(item.account_no)}</td>
-      <td>
-        <a href="#" onclick="return openLedger('${escapeJs(item.account_no)}','${escapeJs(item.full_name)}')">
-          ${escapeHtml(item.full_name)}
-        </a>
-      </td>
+      <td>${escapeHtml(item.full_name)}</td>
       <td>${escapeHtml(item.plan_name)}</td>
       <td>${formatMoney(item.monthly_fee)}</td>
       <td>${escapeHtml(item.status)}</td>
@@ -220,23 +156,6 @@ function renderSubscribers(keyword = "") {
       <td>${escapeHtml(item.onu_serial)}</td>
     </tr>
   `).join("");
-}
-
-async function openLedger(accountNo, fullName) {
-  const accountEl = document.getElementById("ledger_account_no");
-  const nameEl = document.getElementById("ledger_full_name");
-
-  if (accountEl) accountEl.value = accountNo || "";
-  if (nameEl) nameEl.value = fullName || "";
-
-  await loadLedger(accountNo, fullName);
-
-  const ledgerSection = document.getElementById("ledgerSection");
-  if (ledgerSection) {
-    ledgerSection.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
-  return false;
 }
 
 function startEdit(subscriberId) {
@@ -492,9 +411,9 @@ function renderPayments(data) {
   `).join("");
 }
 
-async function loadLedger(accountNoArg = "", fullNameArg = "") {
-  const accountNo = accountNoArg || document.getElementById("ledger_account_no").value.trim();
-  const fullName = fullNameArg || document.getElementById("ledger_full_name").value.trim();
+async function loadLedger() {
+  const accountNo = document.getElementById("ledger_account_no").value.trim();
+  const fullName = document.getElementById("ledger_full_name").value.trim();
 
   try {
     showMessage("ledgerMessage", "Loading ledger...", false);
@@ -572,4 +491,8 @@ function normalizeInputDate(value) {
   const d = new Date(value);
   if (isNaN(d.getTime())) return "";
   return d.toISOString().slice(0, 10);
+}
+
+function escapeJs(value) {
+  return String(value ?? "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
